@@ -134,17 +134,18 @@ def process_message(update: Update, context: CallbackContext) -> None:
     reply_markup = InlineKeyboardMarkup(top_intents_buttons)
     update.message.reply_text('Quieres...', reply_markup=reply_markup)
 
-def confirm(update: Update, context: CallbackContext, function_to_call):
+def confirm(update: Update, context: CallbackContext, function_to_call, confirmation_text, user_answered_yes_message):
     """Asks the user to confirm an action."""
     reply_keyboard = [['Si'],['No']]
     query = update.callback_query
     query.delete_message()
-    context.bot.send_message(chat_id=update.effective_chat.id, text='¿Seguro seguro?',
+    context.bot.send_message(chat_id=update.effective_chat.id, text=confirmation_text,
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder='¿Si o no?'
         ),
     )
     context.user_data['function_to_call'] = function_to_call
+    context.user_data['user_answered_yes_message'] = user_answered_yes_message
     return Waiting_for_confirmation
 
 def user_confirmed(update: Update, context: CallbackContext):
@@ -152,21 +153,18 @@ def user_confirmed(update: Update, context: CallbackContext):
     function_to_call = context.user_data['function_to_call']
     
     if update.message.text == "Si":
-        update.message.reply_text('Ok!', reply_markup=ReplyKeyboardRemove())
+        update.message.reply_text(context.user_data['user_answered_yes_message'], reply_markup=ReplyKeyboardRemove())
         try:
             function_to_call()
         except Exception as e:
             context.bot.send_message(chat_id=update.effective_chat.id, text=f"Me salió este error 😔")
             context.bot.send_message(chat_id=update.effective_chat.id, text=f"{e}")
+        del context.user_data['function_to_call']
         return Waiting_for_command
     else:
         update.message.reply_text('Oki entonces no', reply_markup=ReplyKeyboardRemove())
         del context.user_data['function_to_call']
         return Waiting_for_command
-
-    del context.user_data['function_to_call']
-    return Waiting_for_command
-
 
 def handle_button_press(update: Update, context: CallbackContext) -> None:
     """Parses the CallbackQuery and updates the message text."""
@@ -185,7 +183,7 @@ def handle_button_press(update: Update, context: CallbackContext) -> None:
             query.edit_message_text(text="Impresora 3D encendida")
             return Waiting_for_command
         elif query.data == "3d_printer_off":
-            return confirm(update,context, printer_control.turn_PSU_off)
+            return confirm(update,context, printer_control.turn_PSU_off, "¿Seguro que quieres apagar la impresora 3D?", "Impresora 3D apagada")
             
         else:
             query.edit_message_text(text="Sorry, aún no se como hacer eso 😬")
