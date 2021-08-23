@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import pickle
+import os
 
 # # Loading json data
 # print("Loading json data...")
@@ -94,18 +95,34 @@ print("Loading GloVe data...")
 
 embeddings_index={}
 
-with open('utils/GloVe.pkl','rb') as file:
-  embeddings_index = pickle.load(file)
+if os.path.isfile('utils/GloVe.pkl'):
+    with open('utils/GloVe.pkl','rb') as file:
+        embeddings_index = pickle.load(file)
+else:
+    if not os.path.isfile('glove-sbwc.i25.vec'):
+        print("GloVe data not found. Downloading...")
+        import wget
+        import gzip
+        import shutil
+        wget.download("http://dcc.uchile.cl/~jperez/word-embeddings/glove-sbwc.i25.vec.gz")
+        print("\nDownload complete. Extracting...")
+        with gzip.open('glove-sbwc.i25.vec.gz', 'rb') as f_in:
+            with open('glove-sbwc.i25.vec', 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        os.remove('glove-sbwc.i25.vec.gz')
+        print("Extraction complete. Loading GLoVe data...")
 
-# with open('SBW-vectors-300-min5.txt', encoding='utf8') as f:
-#     for line in f:
-#         values = line.split()
-#         word = values[0]
-#         coefs = np.asarray(values[1:], dtype='float32')
-#         embeddings_index[word] = coefs
+    with open('glove-sbwc.i25.vec', encoding='utf8') as f:
+        next(f) # skip header
+        for line in f:
+            values = line.split()
+            word = values[0]
+            coefs = np.asarray(values[1:], dtype='float32')
+            embeddings_index[word] = coefs
 
-# with open('utils/GloVe.pkl','wb') as file:
-#    pickle.dump(embeddings_index,file)
+    with open('utils/GloVe.pkl','wb') as file:
+       pickle.dump(embeddings_index,file)
+    os.remove('glove-sbwc.i25.vec')
 
 
 # Since GloVe contains vector representation of all the words from a large corpus,
@@ -149,7 +166,7 @@ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc']
 
 print("Training model...")
 
-history = model.fit(train_sequences, train_label, epochs = 30,
+history = model.fit(train_sequences, train_label, epochs = 20,
           batch_size = 8, shuffle=True,
           validation_data=[test_sequences, test_labels])
 
