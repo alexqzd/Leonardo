@@ -17,10 +17,14 @@ bot.
 
 import logging
 
-from telegram import Update, ForceReply
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup
+
+# Commands
+import sys
+sys.path.insert(0, './commands')
+import printer_control
 
 
 ####
@@ -85,6 +89,9 @@ human_readable_labels = {
     "3d_printer_stop": "Cancelar la impresión 3D"
     }
 
+# Convo states
+Waiting_for_command, Waiting_for_confirmation = range(2)
+
 whitelist = [1080659616]
 
 def authorized(user) -> bool:
@@ -103,11 +110,12 @@ def start(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
     if not authorized(user): return
     update.message.reply_markdown_v2(fr'¡Hola {user.mention_markdown_v2()}\! ¿Qué puedo hacer por ti\?')
+    return Waiting_for_command
 
 def help_command(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
     if not authorized(update.effective_user): return
-    update.message.reply_text('Ayuda!')
+    update.message.reply_text('Puedes pedirme que haga cosas, ¡inténtalo!')
 
 
 def process_message(update: Update, context: CallbackContext) -> None:
@@ -127,6 +135,39 @@ def process_message(update: Update, context: CallbackContext) -> None:
     reply_markup = InlineKeyboardMarkup(top_intents_buttons)
     update.message.reply_text('Quieres...', reply_markup=reply_markup)
 
+def confirm(update: Update, context: CallbackContext, function_to_call):
+    """Asks the user to confirm an action."""
+    reply_keyboard = [['Si'],['No']]
+    query = update.callback_query
+    query.delete_message()
+    context.bot.send_message(chat_id=update.effective_chat.id, text='¿Seguro seguro?',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder='¿Si o no?'
+        ),
+    )
+    context.user_data['function_to_call'] = function_to_call
+    return Waiting_for_confirmation
+
+def user_confirmed(update: Update, context: CallbackContext):
+    """Handle the user's response."""
+    function_to_call = context.user_data['function_to_call']
+    
+    if update.message.text == "Si":
+        update.message.reply_text('Ok!')
+        try:
+            function_to_call()
+        except Exception as e:
+            context.bot.send_message(chat_id=update.effective_chat.id, text=f"Me salió este error 😔")
+            context.bot.send_message(chat_id=update.effective_chat.id, text=f"{e}")
+        return Waiting_for_command
+    else:
+        update.message.reply_text('Oki entonces no')
+        del context.user_data['function_to_call']
+        return Waiting_for_command
+
+    del context.user_data['function_to_call']
+    return Waiting_for_command
+
 
 def handle_button_press(update: Update, context: CallbackContext) -> None:
     """Parses the CallbackQuery and updates the message text."""
@@ -139,7 +180,21 @@ def handle_button_press(update: Update, context: CallbackContext) -> None:
     if query.data == "cancel_command":
         query.edit_message_text(text="Comando cancelado")
         return
-    query.edit_message_text(text=f"Seleccionaste: {human_readable_labels[query.data]}")
+    try:
+        if query.data == "3d_printer_on":
+            printer_control.turn_PSU_on()
+            query.edit_message_text(text="Impresora 3D encendida")
+            return Waiting_for_command
+        elif query.data == "3d_printer_off":
+            return confirm(update,context, printer_control.turn_PSU_off)
+            
+        else:
+            query.edit_message_text(text="Sorry, aún no se como hacer eso 😬")
+            return Waiting_for_command
+    except Exception as e:
+        query.edit_message_text(text=f"Me salió este error 😔")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"{e}")
+        return Waiting_for_command
 
 
 def main() -> None:
@@ -150,15 +205,21 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    # on different commands - answer in Telegram
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            Waiting_for_command: [
+                MessageHandler(Filters.text & ~Filters.command, process_message),
+                CallbackQueryHandler(handle_button_press)
+            ],
+            Waiting_for_confirmation: [
+                MessageHandler(Filters.regex('^(Si|No)$'), user_confirmed)
+            ],
+        },
+        fallbacks=[CommandHandler('help', help)],
+    )
 
-    # on non command i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, process_message))
-
-    dispatcher.add_handler(CallbackQueryHandler(handle_button_press))
-
+    dispatcher.add_handler(conv_handler)
     # Start the Bot
     updater.start_polling()
 
