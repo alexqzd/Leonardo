@@ -17,9 +17,8 @@ bot.
 
 import logging
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup
 
 # Commands
 import sys
@@ -153,7 +152,7 @@ def user_confirmed(update: Update, context: CallbackContext):
     function_to_call = context.user_data['function_to_call']
     
     if update.message.text == "Si":
-        update.message.reply_text('Ok!')
+        update.message.reply_text('Ok!', reply_markup=ReplyKeyboardRemove())
         try:
             function_to_call()
         except Exception as e:
@@ -161,7 +160,7 @@ def user_confirmed(update: Update, context: CallbackContext):
             context.bot.send_message(chat_id=update.effective_chat.id, text=f"{e}")
         return Waiting_for_command
     else:
-        update.message.reply_text('Oki entonces no')
+        update.message.reply_text('Oki entonces no', reply_markup=ReplyKeyboardRemove())
         del context.user_data['function_to_call']
         return Waiting_for_command
 
