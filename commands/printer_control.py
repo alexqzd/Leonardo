@@ -3,7 +3,7 @@ import requests
 from requests import api
 
 apikey = "55E925556E164A0B837E6E59EF335952"
-octoprint_server = "http://octopi.local"
+octoprint_server = "https://alexqm.me/aquila"
 
 def make_client():
     try:
@@ -14,7 +14,7 @@ def make_client():
 
 def _control_PSU(command):
     try:
-        r = requests.post(octoprint_server + "/api/plugin/psucontrol", headers={"X-Api-Key": apikey}, json={"command": command})
+        r = requests.post(octoprint_server + "/api/plugin/psucontrol", headers={"X-Api-Key": apikey, "Authorization": "Basic YWxleDpBeF96ZDQ="}, json={"command": command})
         r.raise_for_status()
     except requests.exceptions.HTTPError as err:
         print(err)
