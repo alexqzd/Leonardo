@@ -39,14 +39,14 @@ class IntentClassifier:
     def get_intent(self,text):
         self.text = [text]
         self.test_keras = self.tokenizer.texts_to_sequences(self.text)
-        self.test_keras_sequence = pad_sequences(self.test_keras, maxlen=16, padding='post')
+        self.test_keras_sequence = pad_sequences(self.test_keras, maxlen=11, padding='post')
         self.pred = self.classifier.predict(self.test_keras_sequence)
         return self.label_encoder.inverse_transform(np.argmax(self.pred,1))[0]
     
     def get_probability(self,text):
         self.text = [text]
         self.test_keras = self.tokenizer.texts_to_sequences(self.text)
-        self.test_keras_sequence = pad_sequences(self.test_keras, maxlen=16, padding='post')
+        self.test_keras_sequence = pad_sequences(self.test_keras, maxlen=11, padding='post')
         self.pred = self.classifier.predict(self.test_keras_sequence)
         self.probability_result = dict()
         for idx, prediction in enumerate(self.pred[0]):
@@ -153,9 +153,9 @@ def user_confirmed(update: Update, context: CallbackContext):
     function_to_call = context.user_data['function_to_call']
     
     if update.message.text == "Si":
-        update.message.reply_text(context.user_data['user_answered_yes_message'], reply_markup=ReplyKeyboardRemove())
         try:
             function_to_call()
+            update.message.reply_text(context.user_data['user_answered_yes_message'], reply_markup=ReplyKeyboardRemove())
         except Exception as e:
             context.bot.send_message(chat_id=update.effective_chat.id, text=f"Me salió este error 😔")
             context.bot.send_message(chat_id=update.effective_chat.id, text=f"{e}")
