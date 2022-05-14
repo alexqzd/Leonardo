@@ -168,7 +168,7 @@ mode_switch_commands_handler = [CommandHandler('chat_mode', switch_to_chat_mode)
 def main() -> None:
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
-    updater = Updater("1985053591:AAGBmflL5la-8Nr7e7B_tUnxVzr4IBYwvSg")
+    updater = Updater(telegram_token)
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
