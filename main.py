@@ -15,17 +15,18 @@ Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
 
-from email import message
 import logging
-from statistics import mode
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ChatAction
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
 
 from enum import Enum
+import os
+telegram_token = os.environ['TELEGRAM_TOKEN']
+openai_api_key = os.environ['OPENAI_API_KEY']
 
 import openai
-openai.api_key = "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"
+openai.api_key = openai_api_key
 
 # Enable logging
 logging.basicConfig(
@@ -186,9 +187,14 @@ def main() -> None:
     )
 
     dispatcher.add_handler(conv_handler)
-    # Start the Bot
-    updater.start_polling()
 
+    PORT = int(os.environ.get('PORT', '8443'))
+
+    # Start the Bot
+    updater.start_webhook(listen="0.0.0.0",
+                          port=int(PORT),
+                          url_path=telegram_token)
+    updater.bot.setWebhook("https://leonardo-bot.herokuapp.com/" + telegram_token)
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
     # start_polling() is non-blocking and will stop the bot gracefully.
