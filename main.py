@@ -192,7 +192,7 @@ def main() -> None:
 
     # Start the Bot
     updater.start_webhook(listen="0.0.0.0",
-    port=int(PORT),
+    port=PORT,
     url_path=telegram_token,
     webhook_url='https://leonardo-bot.herokuapp.com/' + telegram_token)
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
