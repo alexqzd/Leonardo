@@ -194,7 +194,7 @@ def main() -> None:
     updater.start_webhook(listen="0.0.0.0",
     port=int(PORT),
     url_path=telegram_token,
-    webhook_url='https://yourherokuappname.herokuapp.com/' + telegram_token)
+    webhook_url='https://leonardo-bot.herokuapp.com/' + telegram_token)
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
     # start_polling() is non-blocking and will stop the bot gracefully.
