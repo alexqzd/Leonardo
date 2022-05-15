@@ -214,8 +214,10 @@ def main() -> None:
             url_path=telegram_token,
             webhook_url=webhook_url + telegram_token
         )
+        print("Started webhook")
     else:
         updater.start_polling()
+        print("Started polling")
         
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
