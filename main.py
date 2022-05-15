@@ -159,7 +159,7 @@ def help_command(update: Update, context: CallbackContext) -> None:
 
 def process_start_message(update: Update, context: CallbackContext) -> None:
     """Reply the user message."""
-    print("The user has started the conversation without the")
+    print("The user has started the conversation without the /start command.")
     if not authorized(update.effective_user): return
     update.message.reply_text('Hi! Send the /start command to start the conversation.')
 
