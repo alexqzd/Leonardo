@@ -24,6 +24,7 @@ from enum import Enum
 import os
 telegram_token = os.environ['TELEGRAM_TOKEN']
 openai_api_key = os.environ['OPENAI_API_KEY']
+webhook_url = os.environ['WEBHOOK_URL']
 
 import openai
 openai.api_key = openai_api_key
@@ -167,6 +168,8 @@ mode_switch_commands_handler = [CommandHandler('chat_mode', switch_to_chat_mode)
 
 def main() -> None:
     """Start the bot."""
+    print("Starting bot...")
+    
     # Create the Updater and pass it your bot's token.
     updater = Updater(telegram_token)
 
@@ -194,12 +197,11 @@ def main() -> None:
     updater.start_webhook(listen="0.0.0.0",
     port=PORT,
     url_path=telegram_token,
-    webhook_url='https://python-telegram-bot-production-14f7.up.railway.app/' + telegram_token)
+    webhook_url=webhook_url + telegram_token)
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
     # start_polling() is non-blocking and will stop the bot gracefully.
     updater.idle()
 
 if __name__ == '__main__':
-    print("Starting bot!")
     main()
