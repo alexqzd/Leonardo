@@ -1,63 +1,46 @@
 #!/usr/bin/env python
 # pylint: disable=C0116,W0613
-# This program is dedicated to the public domain under the CC0 license.
-
-"""
-Simple Bot to reply to Telegram messages.
-
-First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
 
 import logging
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, ChatAction
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
-
-from enum import Enum
+import openai
 import os
+
 telegram_token = os.environ['TELEGRAM_TOKEN']
 openai_api_key = os.environ['OPENAI_API_KEY']
-webhook_url = os.environ['WEBHOOK_URL']
-
-import openai
-openai.api_key = openai_api_key
+if 'WEBHOOK_URL' in os.environ:
+    webhook_url = os.environ['WEBHOOK_URL']
 
 # Enable logging
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 
-logger = logging.getLogger(__name__)
+openai.api_key = openai_api_key
 
-# User and AI enum
-class Entity(str, Enum):
-    """Entity enum."""
-    USER = "User"
-    AI = "AI"
+gpt_3_engines = ["text-ada-001", "text-babbage-001", "text-curie-001", "text-davinci-002"]
+current_engine = gpt_3_engines[3] 
 
+AI_name = "AI"
 _chat_log = []
 
-def append_to_chat_log(entity: Entity, message: str):
+def append_to_chat_log(username: str, message: str):
     """Append a message to the chat log."""
-    _chat_log.append(f"{entity.value}: {message.strip()}")
+    _chat_log.append(f"{username}: {message.strip()}")
 
 def get_chat_log() -> str:
     """Get the chat log."""
     return "\n".join(_chat_log)
 
-def get_chat_response(message: str) -> str:
+def get_chat_response(username: str, message: str) -> str:
     """Get the chat response."""
-    append_to_chat_log(Entity.USER, message)
+    append_to_chat_log(username, message)
+    print(f"Current chatlog is:\n{get_chat_log()}")
     response = openai.Completion.create(
-        engine="text-davinci-002",
-        prompt = f"{get_chat_log()}\n{Entity.USER.value}: {message}\n{Entity.AI.value}:",
+        engine=current_engine,
+        prompt = f"{get_chat_log()}\n{username}: {message}\n{AI_name}:",
         temperature=0.9,
         max_tokens=200,
         top_p=1,
@@ -65,7 +48,7 @@ def get_chat_response(message: str) -> str:
         presence_penalty=0.9
     )
     response = response.choices[0].text
-    append_to_chat_log(Entity.AI, response)
+    append_to_chat_log(AI_name, response)
     return response
 
 # Convo states
@@ -91,10 +74,10 @@ def start(update: Update, context: CallbackContext) -> None:
     context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
     print(f"Message: {update.message.text.lower()}")
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=current_engine,
         prompt=f"You are a chatbot named Leonardo. Write a message greeting {update.effective_user.full_name}.",
-        temperature=0.9,
-        max_tokens=512,
+        temperature=0.8,
+        max_tokens=64,
         top_p=1,
         frequency_penalty=0.0,
         presence_penalty=0.6
@@ -102,7 +85,7 @@ def start(update: Update, context: CallbackContext) -> None:
     response = response.choices[0].text
     update.message.reply_text(response)
     _chat_log.clear()
-    append_to_chat_log(Entity.AI, response)
+    append_to_chat_log(AI_name, response)
     return Waiting_for_chat_message
 
 def process_message(update: Update, context: CallbackContext) -> None:
@@ -111,7 +94,7 @@ def process_message(update: Update, context: CallbackContext) -> None:
     context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
     message = update.message.text
     print(f"Message: {message}")
-    response = get_chat_response(message)
+    response = get_chat_response(update.effective_user.first_name, message)
     update.message.reply_text(response)
     print(f"Response: {response}")
     return Waiting_for_chat_message
@@ -123,7 +106,7 @@ def process_raw_prompt(update: Update, context: CallbackContext) -> None:
     message = update.message.text
     print(f"Message: {message}")
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=current_engine,
         prompt=message,
         temperature=0.9,
         max_tokens=512,
@@ -164,7 +147,37 @@ def process_start_message(update: Update, context: CallbackContext) -> None:
     if not authorized(update.effective_user): return
     update.message.reply_text('Hi! Send the /start command to start the conversation.')
 
-mode_switch_commands_handler = [CommandHandler('chat_mode', switch_to_chat_mode), CommandHandler('raw_mode', switch_to_raw_prompt)]
+def get_available_engines(update: Update, context: CallbackContext) -> None:
+    """Get the available engines and show them to the user."""
+    if not authorized(update.effective_user): return
+    print("The user has requested the available engines.")
+    available_engines_buttons = []
+    print("Available engines:")
+    for engine in gpt_3_engines:
+        print(engine)
+        available_engines_buttons.append([InlineKeyboardButton(engine, callback_data=engine)])
+
+    available_engines_buttons.append([InlineKeyboardButton("Cancel", callback_data="cancel_command")])
+    reply_markup = InlineKeyboardMarkup(available_engines_buttons)
+    update.message.reply_text(f"Currently using {current_engine}.\nChoose another engine to use:", reply_markup=reply_markup)
+    
+def handle_button_press(update: Update, context: CallbackContext) -> None:
+    """Parses the CallbackQuery and updates the message text."""
+    if not authorized(update.effective_user): return
+    query = update.callback_query
+    global current_engine
+    # CallbackQueries need to be answered, even if no notification to the user is needed
+    # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
+    query.answer()
+    if query.data == "cancel_command":
+        query.edit_message_text(text=f"OK, I'll keep using {current_engine}.")
+        return
+    else:
+        current_engine = query.data
+        query.edit_message_text(text=f"OK, I'll use {current_engine} from now on.")
+
+mode_switch_commands_handler = [CommandHandler('chat_mode', switch_to_chat_mode), CommandHandler('raw_mode', switch_to_raw_prompt), CommandHandler('switch_engine', get_available_engines), CallbackQueryHandler(handle_button_press)]
+
 
 def main() -> None:
     """Start the bot."""
@@ -194,10 +207,16 @@ def main() -> None:
     PORT = int(os.environ.get('PORT', '8443'))
 
     # Start the Bot
-    updater.start_webhook(listen="0.0.0.0",
-    port=PORT,
-    url_path=telegram_token,
-    webhook_url=webhook_url + telegram_token)
+    if 'WEBHOOK_URL' in os.environ:
+        updater.start_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=telegram_token,
+            webhook_url=webhook_url + telegram_token
+        )
+    else:
+        updater.start_polling()
+        
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
     # start_polling() is non-blocking and will stop the bot gracefully.
