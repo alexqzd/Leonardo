@@ -6,6 +6,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Update,
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
 import openai
 import os
+import speech_recognition as sr
+from pydub import AudioSegment
+import pyttsx3
 
 telegram_token = os.environ['TELEGRAM_TOKEN']
 openai_api_key = os.environ['OPENAI_API_KEY']
@@ -17,6 +20,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
+
+synthesizer = pyttsx3.init()
 
 openai.api_key = openai_api_key
 
@@ -41,11 +46,12 @@ def get_chat_response(username: str, message: str) -> str:
     response = openai.Completion.create(
         engine=current_engine,
         prompt = f"{get_chat_log()}\n{username}: {message}\n{AI_name}:",
+        stop = [f"{username}:", f"{AI_name}:"],
         temperature=0.9,
         max_tokens=200,
         top_p=1,
-        frequency_penalty=0.6,
-        presence_penalty=0.9
+        frequency_penalty=1.3,
+        presence_penalty=1
     )
     response = response.choices[0].text
     append_to_chat_log(AI_name, response)
@@ -98,6 +104,33 @@ def process_message(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(response)
     print(f"Response: {response}")
     return Waiting_for_chat_message
+
+def process_voice_message(update: Update, context: CallbackContext) -> None:
+    if not authorized(update.effective_user): return
+    # get basic info about the voice note file and prepare it for downloading
+    new_file = context.bot.get_file(update.message.voice.file_id)
+    # download the voice note as a file
+    new_file.download("voice_note.ogg")
+    sound = AudioSegment.from_ogg("voice_note.ogg")
+    sound.export("voice_note.wav", format="wav")
+    r = sr.Recognizer()
+    with sr.AudioFile("voice_note.wav") as source:
+        # listen for the data (load audio to memory)
+        audio_data = r.record(source)
+        # recognize (convert from speech to text)
+        message = r.recognize_google(audio_data)
+        context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+        print(f"Voice message: {message}")
+        response = get_chat_response(update.effective_user.first_name, f"[Voice message transcription]: {message}")
+        #myobj = gTTS(text=response, lang="en", slow=False)
+        #myobj.save("reply.mp3")
+        synthesizer.save_to_file(response, 'reply.wav')
+        synthesizer.runAndWait()
+        sound = AudioSegment.from_wav("reply.wav")
+        sound.export("reply.mp3", format="mp3")
+        update.message.reply_voice(voice=open("reply.mp3", "rb"))
+        print(f"Response: {response}")
+        return Waiting_for_chat_message
 
 def process_raw_prompt(update: Update, context: CallbackContext) -> None:
     """Pass the raw prompt to the AI."""
@@ -194,6 +227,7 @@ def main() -> None:
         states={
             Waiting_for_chat_message: [
                 MessageHandler(Filters.text & ~Filters.command, process_message),
+                MessageHandler(Filters.voice , process_voice_message),
                 CommandHandler('help', help_command),CommandHandler('start', start)] + mode_switch_commands_handler,
             Waiting_for_raw_prompt: [
                 MessageHandler(Filters.text & ~Filters.command,process_raw_prompt),
