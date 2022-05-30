@@ -8,7 +8,7 @@ import openai
 import os
 import speech_recognition as sr
 from pydub import AudioSegment
-import pyttsx3
+from gtts import gTTS
 
 telegram_token = os.environ['TELEGRAM_TOKEN']
 openai_api_key = os.environ['OPENAI_API_KEY']
@@ -20,8 +20,6 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
-
-synthesizer = pyttsx3.init()
 
 openai.api_key = openai_api_key
 
@@ -122,12 +120,10 @@ def process_voice_message(update: Update, context: CallbackContext) -> None:
         context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
         print(f"Voice message: {message}")
         response = get_chat_response(update.effective_user.first_name, f"[Voice message transcription]: {message}")
-        #myobj = gTTS(text=response, lang="en", slow=False)
-        #myobj.save("reply.mp3")
-        synthesizer.save_to_file(response, 'reply.wav')
-        synthesizer.runAndWait()
-        sound = AudioSegment.from_wav("reply.wav")
-        sound.export("reply.mp3", format="mp3")
+        tts = gTTS(text=response, lang="en", slow=False)
+        tts.save("reply.mp3")
+        # sound = AudioSegment.from_wav("reply.wav")
+        #sound.export("reply.mp3", format="mp3")
         update.message.reply_voice(voice=open("reply.mp3", "rb"))
         print(f"Response: {response}")
         return Waiting_for_chat_message
