@@ -140,7 +140,7 @@ def process_raw_prompt(update: Update, context: CallbackContext) -> None:
         temperature=0.9,
         max_tokens=512,
         top_p=1,
-        frequency_penalty=0.0,
+        frequency_penalty=0.6,
         presence_penalty=0.6
     )
     response = response.choices[0].text
